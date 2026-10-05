@@ -29,4 +29,4 @@ A cozy, procedural 3D web scene with a Vietnamese theme, built with Three.js. Th
 ## Rules
 - MVP scope is frozen. Phase 2 (weather, boat, music, post-FX, random map, donate) only starts **after the scene is public and has real feedback**.
 - Music must be CC0 or self-made.
-- Deploy is a user gate: `npm run build && wrangler pages deploy dist --project-name viet-valley`.
+- Deploy is a user gate: pushing to `master` runs `.github/workflows/deploy.yml` (test + build → GitHub Pages at https://tuhuudev.github.io/viet-valley/).
