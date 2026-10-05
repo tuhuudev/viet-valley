@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import './style.css';
 import { CAMERA_MODES, createCameraRig } from './cameras';
 import { PRESETS, createSky } from './env/sky';
+import { createClouds } from './env/clouds';
+import { createPost } from './post';
 import { createHud } from './ui/hud';
 import { createHeightfield } from './world/heightfield';
 import { createRailway } from './world/railway';
@@ -16,9 +18,13 @@ const HOURS_PER_SECOND = 1 / 25;
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.info.autoReset = false;
 
 const scene = new THREE.Scene();
 
@@ -27,7 +33,7 @@ const hf = createHeightfield(SEED);
 const track = buildTrack(hf);
 const height = createCarvedHeight(hf, track);
 scene.add(createTerrainMesh(height, track.options.railY - LEDGE_OFFSET));
-const sea = createSea();
+const sea = createSea(hf);
 scene.add(sea.mesh);
 const railway = createRailway(track, height);
 scene.add(railway.group);
@@ -48,12 +54,16 @@ sc.top = 240;
 sc.bottom = -240;
 sc.near = 10;
 sc.far = 900;
-sun.shadow.bias = -0.0006;
+sun.shadow.bias = -0.0003;
+sun.shadow.normalBias = 0.35;
 scene.add(sun);
 const sky = createSky(scene, sun, hemi);
+const clouds = createClouds(SEED + 19);
+scene.add(clouds.group);
 
 // Cameras + HUD
 const rig = createCameraRig(canvas, train, height);
+const post = createPost(renderer, scene, rig.camera);
 let paused = false;
 const nextPreset = () => {
   const h = sky.hours % 24;
@@ -88,6 +98,7 @@ const resize = () => {
   const w = window.innerWidth;
   const h = window.innerHeight;
   renderer.setSize(w, h, false);
+  post.setSize(w, h);
   rig.resize(w, h);
 };
 window.addEventListener('resize', resize);
@@ -103,11 +114,13 @@ renderer.setAnimationLoop(() => {
     train.update(dt);
   }
   sea.update(elapsed);
+  clouds.update(elapsed);
   const { night } = sky.update(scene);
   train.setNight(night);
   rig.update(dt);
   hud.setClock(sky.hours, paused);
-  renderer.render(scene, rig.camera);
+  renderer.info.reset();
+  post.render();
 });
 
 if (import.meta.env.DEV) {

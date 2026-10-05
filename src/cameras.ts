@@ -25,10 +25,10 @@ export function createCameraRig(
   ground: (x: number, z: number) => number,
 ): CameraRig {
   const camera = new THREE.PerspectiveCamera(50, 1, 0.3, 4000);
-  camera.position.set(-60, 130, 330);
+  camera.position.set(-185, 164, 340);
 
   const controls = new OrbitControls(camera, dom);
-  controls.target.set(0, 22, 0);
+  controls.target.set(0, 37, -35);
   controls.enableDamping = true;
   controls.maxPolarAngle = Math.PI * 0.48;
   controls.minDistance = 25;
@@ -48,10 +48,14 @@ export function createCameraRig(
     return p;
   };
 
-  /** Wider vertical FOV on portrait screens so the whole headland still fits. */
+  /** Preserve the horizontal composition when a phone is held upright. */
   const applyFov = () => {
-    const base = rig.mode === 'overview' ? 50 : rig.mode === 'window' ? 62 : 55;
-    camera.fov = camera.aspect < 1 ? base + 22 : base;
+    const base = rig.mode === 'overview' ? 42 : rig.mode === 'window' ? 62 : 55;
+    if (rig.mode === 'overview') {
+      const halfFov = THREE.MathUtils.degToRad(base / 2);
+      const fit = Math.max(1, 1.55 / camera.aspect);
+      camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(halfFov) * fit));
+    } else camera.fov = camera.aspect < 1 ? base + 16 : base;
     camera.updateProjectionMatrix();
   };
 

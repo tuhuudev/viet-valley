@@ -1,17 +1,20 @@
 import * as THREE from 'three';
+import { createNoise2D } from '../core/noise';
 import { WORLD_SIZE, type Heightfield } from './heightfield';
 import type { Track } from './track';
 
 const CORRIDOR = 4.5; // half-width of the flat ledge
 const BLEND = 9; // blend distance back to natural terrain
 
-const C_SAND = new THREE.Color('#e8d7a5');
-const C_GRASS = new THREE.Color('#7fb069');
-const C_FOREST = new THREE.Color('#4f8a4b');
-const C_ROCK = new THREE.Color('#9a8f80');
-const C_PEAK = new THREE.Color('#b9b2a6');
-const C_LEDGE = new THREE.Color('#b8a58a');
-const C_SEABED = new THREE.Color('#d9c896');
+const C_SAND = new THREE.Color('#efd6a0');
+const C_GRASS = new THREE.Color('#9abf67');
+const C_FOREST = new THREE.Color('#4b9062');
+const C_ROCK = new THREE.Color('#b09f83');
+const C_PEAK = new THREE.Color('#cec3a5');
+const C_LEDGE = new THREE.Color('#bbac87');
+const C_SEABED = new THREE.Color('#d4c493');
+const C_WARM = new THREE.Color('#bdc67b');
+const C_COOL = new THREE.Color('#639c88');
 
 const smoothstep = (a: number, b: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
@@ -35,13 +38,14 @@ export function createCarvedHeight(hf: Heightfield, track: Track) {
 export function createTerrainMesh(
   height: (x: number, z: number) => number,
   ledgeY: number,
-  segments = 240,
+  segments = 176,
 ): THREE.Mesh {
   const geo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, segments, segments);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position as THREE.BufferAttribute;
   const colors = new Float32Array(pos.count * 3);
   const c = new THREE.Color();
+  const noise = createNoise2D(1975);
 
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
@@ -55,11 +59,24 @@ export function createTerrainMesh(
     const dz = height(x, z + e) - height(x, z - e);
     const slope = Math.sqrt(dx * dx + dz * dz) / (2 * e);
 
+    const woodland = smoothstep(-0.4, 0.5, noise(x * 0.024, z * 0.024));
+    const meadow = noise(x * 0.057 + 20, z * 0.057);
     if (y < 0) c.copy(C_SEABED);
-    else if (y < 1.6) c.copy(C_SAND);
-    else if (y < 40) c.copy(C_GRASS).lerp(C_FOREST, smoothstep(6, 30, y));
-    else c.copy(C_FOREST).lerp(C_PEAK, smoothstep(55, 90, y));
-    if (y > 2) c.lerp(C_ROCK, smoothstep(1.3, 2.4, slope));
+    else if (y < 2.3) c.copy(C_SAND).lerp(C_GRASS, smoothstep(1.1, 2.3, y) * 0.5);
+    else {
+      c.copy(C_GRASS).lerp(C_FOREST, woodland * 0.7 + smoothstep(35, 95, y) * 0.13);
+      c.lerp(C_WARM, Math.max(0, meadow) * 0.25);
+      const facing = (dx * 0.8 + dz * 0.6) / Math.max(1, Math.hypot(dx, dz));
+      c.lerp(facing > 0 ? C_COOL : C_WARM, Math.abs(facing) * 0.1);
+    }
+    // Keep the railway ledge warm and grassy between the exposed cuts.
+    const nearLedge = Math.abs(y - ledgeY) < 5;
+    if (y > 2.3 && !nearLedge) {
+      const exposed = smoothstep(0.95, 2, slope);
+      c.lerp(C_ROCK, exposed * 0.82);
+      c.lerp(C_PEAK, smoothstep(92, 113, y) * 0.6 + exposed * 0.08);
+      c.multiplyScalar(0.97 + 0.045 * Math.sin(y * 0.91));
+    }
     // Flat ledge colour along the railway
     if (slope < 0.05 && Math.abs(y - ledgeY) < 0.2) c.lerp(C_LEDGE, 0.8);
 
